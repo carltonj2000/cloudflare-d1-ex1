@@ -1,25 +1,18 @@
 // test/index.spec.ts
-import { env, createExecutionContext, waitOnExecutionContext, SELF } from "cloudflare:test";
-import { describe, it, expect } from "vitest";
-import worker from "../src/index";
+import { env } from 'cloudflare:test';
+import { it, expect } from 'vitest';
+import { UserRow } from '../src/types';
 
-// For now, you'll need to do something like this to get a correctly-typed
-// `Request` to pass to `worker.fetch()`.
-const IncomingRequest = Request<unknown, IncomingRequestCfProperties>;
+it('should insert and query user', async () => {
+	const user = await env.DB.prepare(
+		'insert into users(name, email) values(?,?) returning *'
+	)
+		.bind('name', 'email@example.com')
+		.first<UserRow>();
+	expect(user).toEqual({ id: 1, name: 'name', email: 'email@example.com' });
 
-describe("Hello World worker", () => {
-  it("responds with Hello World! (unit style)", async () => {
-    const request = new IncomingRequest("http://example.com");
-    // Create an empty context to pass to `worker.fetch()`.
-    const ctx = createExecutionContext();
-    const response = await worker.fetch(request, env, ctx);
-    // Wait for all `Promise`s passed to `ctx.waitUntil()` to settle before running test assertions
-    await waitOnExecutionContext(ctx);
-    expect(await response.text()).toMatchInlineSnapshot(`"Hello World!"`);
-  });
-
-  it("responds with Hello World! (integration style)", async () => {
-   const response = await SELF.fetch("https://example.com");
-   expect(await response.text()).toMatchInlineSnapshot(`"Hello World!"`);
- });
+	const userById = await env.DB.prepare('select * from users where id = ?')
+		.bind(user!.id)
+		.first<UserRow>();
+	expect(userById).toEqual({ id: 1, name: 'name', email: 'email@example.com' });
 });
